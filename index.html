@@ -1520,6 +1520,38 @@
         openFormSelectId: null,
 
         init: () => {
+          // 1. 初始化当前历史状态，防止页面刷新后状态错乱
+          history.replaceState({ popup: null }, document.title, location.href);
+
+          // 2. 监听返回键 (popstate)
+          window.addEventListener("popstate", (event) => {
+            const state = event.state;
+
+            // 检查是否有通用弹窗 (Alert/Confirm) 正在显示
+            if (
+              document
+                .getElementById("universal-modal")
+                .classList.contains("show")
+            ) {
+              // 这里的 true 参数表示 "这是来自返回键的操作，不要再调用 history.back()"
+              app.closeUniversalModal(null, true);
+              return;
+            }
+
+            // 检查是否有主弹窗 (详情页) 正在显示
+            if (
+              document
+                .getElementById("modal-overlay")
+                .classList.contains("show")
+            ) {
+              app.closeModal(true);
+              return;
+            }
+
+            // 如果没有任何弹窗，浏览器会执行默认的后退（退出应用或回退网页）
+          });
+
+          // 3. 原有的 storage 监听
           window.addEventListener("storage", async (e) => {
             if (e.key === "mykeys_data" && app.masterKey) {
               if (
@@ -1566,6 +1598,10 @@
 
         _toggleModal: (options) => {
           return new Promise((resolve) => {
+            // --- 新增：推入历史记录 ---
+            history.pushState({ popup: "universal" }, null, "");
+            // -----------------------
+
             app.modalResolve = resolve;
 
             document.getElementById("u-modal-title").innerText =
@@ -1602,7 +1638,28 @@
           });
         },
 
-        closeUniversalModal: (result) => {
+        closeUniversalModal: (result, fromBackEvent = false) => {
+          // 如果不是按返回键触发的（是点击了确定/取消按钮）
+          if (!fromBackEvent) {
+            // 保存结果到临时变量，因为 history.back() 是异步的，
+            // 我们需要在 popstate 触发的下一次调用中处理 resolve
+            app._tempModalResult = result;
+            history.back();
+            return;
+          }
+
+          // 获取结果（如果是通过返回键关闭的，result 为 undefined，视为取消）
+          // 如果是通过按钮触发回来的，result 已经在 app._tempModalResult 里了
+          const finalResult =
+            typeof result !== "undefined" && result !== null
+              ? result
+              : app._tempModalResult !== undefined
+              ? app._tempModalResult
+              : null;
+
+          // 清理临时变量
+          app._tempModalResult = undefined;
+
           document.getElementById("universal-modal").classList.remove("show");
 
           setTimeout(() => {
@@ -1613,9 +1670,9 @@
                 .classList.contains("hidden");
 
               if (isPrompt) {
-                app.modalResolve(result ? inputVal : null);
+                app.modalResolve(finalResult ? inputVal : null);
               } else {
-                app.modalResolve(result);
+                app.modalResolve(finalResult);
               }
               app.modalResolve = null;
             }
@@ -2095,6 +2152,10 @@
         },
 
         openModal: (isEdit = false) => {
+          // --- 新增：推入历史记录 ---
+          history.pushState({ popup: "main" }, null, "");
+          // -----------------------
+
           document.getElementById("modal-overlay").classList.add("show");
 
           // --- 核心修复：强制重置 ID ---
@@ -2179,7 +2240,14 @@
           });
         },
 
-        closeModal: () => {
+        closeModal: (fromBackEvent = false) => {
+          // 如果不是通过按返回键触发的（比如点击了取消按钮），
+          // 我们手动调用 back()，这会触发 popstate 事件，从而再次调用 closeModal(true)
+          if (!fromBackEvent) {
+            history.back();
+            return;
+          }
+
           document.getElementById("modal-overlay").classList.remove("show");
           app.closeFormDropdowns();
 
