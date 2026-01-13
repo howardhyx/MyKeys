@@ -1,6 +1,17 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
   <head>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="theme-color" content="#f2f2f7" />
+    <link rel="apple-touch-icon" href="icon.png" />
     <meta charset="UTF-8" />
     <meta
       name="viewport"
@@ -59,7 +70,7 @@
         overflow-y: auto;
         position: relative;
         scroll-behavior: smooth;
-        padding-bottom: 90px;
+        padding-bottom: calc(90px + env(safe-area-inset-bottom));
         overscroll-behavior-y: contain;
       }
 
@@ -108,10 +119,12 @@
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
         border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
-        padding-top: 50px;
-        padding-bottom: 10px;
-        padding-left: 16px;
-        padding-right: 16px;
+        padding-top: calc(env(safe-area-inset-top) + 10px);
+        padding-bottom: calc(env(safe-area-inset-bottom) + 10px);
+        padding-left: calc(env(safe-area-inset-left) + 16px);
+        padding-right: calc(env(safe-area-inset-right) + 16px);
+        height: auto;
+        min-height: 80px;
       }
 
       .nav-header {
@@ -426,6 +439,14 @@
         padding: 0 10px;
         z-index: 40;
         transition: transform 0.3s ease;
+
+        /* 增加底部内边距 */
+        padding-bottom: calc(env(safe-area-inset-bottom) + 5px);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+
+        height: auto;
+        min-height: 83px;
       }
       .bottom-toolbar.hidden {
         transform: translateY(100%);
@@ -610,6 +631,7 @@
         justify-content: space-between;
         align-items: center;
         padding: 16px;
+        padding-top: max(16px, env(safe-area-inset-top)); /* 稍微给一点余量 */
         background: rgba(242, 242, 247, 0.95);
         border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
         border-radius: 12px 12px 0 0;
@@ -842,7 +864,7 @@
         z-index: 190;
         display: none;
       }
-
+      /*
       @media (max-width: 500px) {
         body {
           background-color: var(--ios-bg);
@@ -857,6 +879,38 @@
         }
         .toast {
           bottom: 120px;
+        }
+      }*/
+
+      @media (max-width: 500px) {
+        /* 让 Body 占满全屏，无滚动条 */
+        body {
+          background-color: var(--ios-bg);
+          align-items: flex-start; /* 从顶部开始对齐 */
+          overflow: hidden; /* 禁止 body 滚动，只允许 app-container 滚动 */
+          position: fixed; /* 锁死页面防止橡皮筋效果拖动整个网页 */
+          width: 100%;
+          height: 100%;
+        }
+
+        /* 彻底移除设备外壳样式 */
+        #device-frame {
+          width: 100%;
+          height: 100%; /* 占满视口 */
+          border-radius: 0;
+          box-shadow: none;
+          border: none;
+          background-color: var(--ios-bg);
+        }
+
+        /* 调整 Toast 位置，避免被键盘或手指遮挡 */
+        .toast {
+          bottom: 50%; /* 移到屏幕中间可能更醒目，或者底部偏上 */
+        }
+
+        /* 隐藏那个模拟的底部横条 (Home Indicator)，因为真机自己有 */
+        .home-indicator {
+          display: none;
         }
       }
     </style>
