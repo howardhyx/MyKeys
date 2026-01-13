@@ -919,6 +919,11 @@
           display: none;
         }
       }
+      /* --- 隐藏 datalist 默认的倒三角箭头 --- */
+      input::-webkit-calendar-picker-indicator {
+        display: none !important;
+        opacity: 0 !important;
+      }
     </style>
   </head>
   <body>
@@ -1247,6 +1252,7 @@
                       id="f-phone"
                       class="form-input"
                       placeholder="未设置"
+                      list="phone-options"
                     />
                   </div>
                 </div>
@@ -1258,6 +1264,7 @@
                       id="f-email"
                       class="form-input"
                       placeholder="未设置"
+                      list="email-options"
                     />
                   </div>
                 </div>
@@ -1327,6 +1334,9 @@
 
               <div class="form-section-label">自定义字段</div>
               <div id="custom-fields-container"></div>
+
+              <datalist id="phone-options"></datalist>
+              <datalist id="email-options"></datalist>
 
               <button
                 type="button"
@@ -2152,22 +2162,18 @@
         },
 
         openModal: (isEdit = false) => {
-          // --- 新增：推入历史记录 ---
+          // 1. 推入历史记录，支持返回键关闭弹窗
           history.pushState({ popup: "main" }, null, "");
-          // -----------------------
 
           document.getElementById("modal-overlay").classList.add("show");
 
-          // --- 核心修复：强制重置 ID ---
           // 如果不是编辑模式，必须把 ID 清空，防止 saveEntry 误认为是修改
           if (!isEdit) {
             document.getElementById("entry-id").value = "";
             document.getElementById("modal-title").innerText = "添加账号";
-          } else {
-            // 如果是编辑，具体赋值交给 editEntry 函数去做，这里不管
           }
 
-          // 下面是原有的分类列表渲染逻辑...
+          // --- 原有分类列表渲染逻辑 (保持不变) ---
           const catListEl = document.getElementById("list-f-category");
           catListEl.innerHTML = "";
           const existingCats = [...new Set(app.data.map((i) => i.category))];
@@ -2208,9 +2214,35 @@
           customDiv.innerHTML = `<span>自定义...</span>`;
           catListEl.appendChild(customDiv);
 
+          // --- 原有“关联账号”逻辑 (保持不变) ---
           app.populateLinkedOptions(
             isEdit ? document.getElementById("entry-id").value : null
           );
+
+          // 2. 自动补全逻辑：扫描现有数据填充 datalist
+          const populateDatalist = (listId, field) => {
+            const listEl = document.getElementById(listId);
+            if (!listEl) return;
+            listEl.innerHTML = ""; // 清空旧列表
+
+            // 提取非空且去重的数据
+            const uniqueValues = [
+              ...new Set(
+                app.data
+                  .map((item) => item[field])
+                  .filter((val) => val && val.trim() !== "")
+              ),
+            ];
+
+            uniqueValues.forEach((val) => {
+              const opt = document.createElement("option");
+              opt.value = val;
+              listEl.appendChild(opt);
+            });
+          };
+
+          populateDatalist("phone-options", "phone");
+          populateDatalist("email-options", "email");
         },
 
         populateLinkedOptions: (excludeId = null) => {
