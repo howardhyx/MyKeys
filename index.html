@@ -74,7 +74,14 @@
         overscroll-behavior-y: contain;
       }
 
-      .app-container::-webkit-scrollbar,
+      .app-container::-webkit-scrollbar {
+        width: 5px;
+        display: block;
+      }
+      .app-container::-webkit-scrollbar-thumb {
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
+      }
       .modal-body::-webkit-scrollbar {
         width: 0px;
         display: none;
@@ -119,9 +126,10 @@
         backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
         border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
-        padding-top: calc(env(safe-area-inset-top) + 10px);
+        padding-top: calc(env(safe-area-inset-top) + 20px);
         padding-left: calc(env(safe-area-inset-left) + 16px);
         padding-right: calc(env(safe-area-inset-right) + 16px);
+        padding-bottom: 15px; /* 你可以把 15px 改成 20px 或更大 */
         height: auto;
         min-height: 80px;
       }
@@ -2059,7 +2067,7 @@
                               item.appName
                             )}</span>
                             <span class="row-subtitle">${app.escapeHtml(
-                              item.username || "无用户名"
+                              item.username || item.nickname || "无用户名"
                             )}</span>
                         </div>
                         <span class="tag-pill">${app.escapeHtml(
@@ -2089,6 +2097,16 @@
         openModal: (isEdit = false) => {
           document.getElementById("modal-overlay").classList.add("show");
 
+          // --- 核心修复：强制重置 ID ---
+          // 如果不是编辑模式，必须把 ID 清空，防止 saveEntry 误认为是修改
+          if (!isEdit) {
+            document.getElementById("entry-id").value = "";
+            document.getElementById("modal-title").innerText = "添加账号";
+          } else {
+            // 如果是编辑，具体赋值交给 editEntry 函数去做，这里不管
+          }
+
+          // 下面是原有的分类列表渲染逻辑...
           const catListEl = document.getElementById("list-f-category");
           catListEl.innerHTML = "";
           const existingCats = [...new Set(app.data.map((i) => i.category))];
@@ -2099,6 +2117,7 @@
           const currentCat = isEdit
             ? document.getElementById("f-category").value
             : "默认";
+
           if (!isEdit) {
             app.selectFormOption("f-category", "默认", "默认");
           }
@@ -2163,8 +2182,13 @@
         closeModal: () => {
           document.getElementById("modal-overlay").classList.remove("show");
           app.closeFormDropdowns();
+
           setTimeout(() => {
             document.getElementById("entry-form").reset();
+
+            // --- 核心修复：手动清空 hidden input ---
+            document.getElementById("entry-id").value = "";
+
             document.getElementById("custom-fields-container").innerHTML = "";
             app.resetCategory();
 
@@ -2222,61 +2246,58 @@
           const btn = document.querySelector(".modal-btn.save");
           const originalText = btn.innerText;
           btn.disabled = true;
-          btn.innerText = "保存中...";
+          btn.innerText = "处理中...";
 
           try {
-            const id = document.getElementById("entry-id").value;
-            const appName = document.getElementById("f-appName").value;
+            // 1. 获取关键数据
+            const idInput = document.getElementById("entry-id");
+            let id = idInput.value; // 获取隐藏域ID
+            const appName = document.getElementById("f-appName").value.trim();
 
-            let category;
-            const catInput = document.getElementById("f-new-category");
-
-            if (!catInput.classList.contains("hidden")) {
-              category = catInput.value;
-            } else {
-              category = document.getElementById("f-category").value;
-            }
-
-            if (!category || !category.trim()) {
-              if (
-                !catInput.classList.contains("hidden") &&
-                !catInput.value.trim()
-              ) {
-                catInput.focus();
-                app.showToast("请填写分类名称");
-                throw new Error("Validation Error");
-              }
-              category = "默认";
-            }
-
+            // 2. 校验
             if (!appName) {
               app.showToast("应用名称必填");
               throw new Error("Validation Error");
             }
 
-            const customFields = [];
-            document
-              .querySelectorAll(".form-group .c-key")
-              .forEach((keyInput) => {
-                const valInput = keyInput
-                  .closest(".form-group")
-                  .querySelector(".c-val");
-                if (keyInput.value)
-                  customFields.push({
-                    key: keyInput.value,
-                    val: valInput.value,
-                  });
-              });
+            // 3. 分类处理
+            let category;
+            const catInput = document.getElementById("f-new-category");
+            if (!catInput.classList.contains("hidden")) {
+              category = catInput.value.trim();
+            } else {
+              category = document.getElementById("f-category").value;
+            }
+            if (!category) category = "默认";
 
-            const entry = {
-              id: id || Crypto.getUUID(),
+            // 4. 自定义字段提取 (修复版)
+            const customFields = [];
+            const cfContainer = document.getElementById(
+              "custom-fields-container"
+            );
+            if (cfContainer) {
+              Array.from(cfContainer.children).forEach((group) => {
+                const keyEl = group.querySelector(".c-key");
+                const valEl = group.querySelector(".c-val");
+                if (keyEl && valEl && keyEl.value.trim()) {
+                  customFields.push({
+                    key: keyEl.value.trim(),
+                    val: valEl.value.trim(),
+                  });
+                }
+              });
+            }
+
+            // 5. 构造数据对象
+            // 注意：这里先不给 ID，由下方逻辑决定
+            const newEntryData = {
               appName,
               category,
-              username: document.getElementById("f-username").value,
+              username: document.getElementById("f-username").value.trim(),
               password: document.getElementById("f-password").value,
-              nickname: document.getElementById("f-nickname").value,
-              phone: document.getElementById("f-phone").value,
-              email: document.getElementById("f-email").value,
+              nickname: document.getElementById("f-nickname").value.trim(),
+              phone: document.getElementById("f-phone").value.trim(),
+              email: document.getElementById("f-email").value.trim(),
               linkedId: document.getElementById("f-isLinked").checked
                 ? document.getElementById("f-linkedId").value
                 : null,
@@ -2284,21 +2305,39 @@
               updatedAt: new Date().toISOString(),
             };
 
-            if (id) app.data[app.data.findIndex((x) => x.id === id)] = entry;
-            else app.data.push(entry);
+            // 6. 数组操作核心 (防覆盖逻辑)
+            let isUpdate = false;
 
+            if (id) {
+              // 如果提交时带有 ID，必须在数组里确认它真的存在
+              const index = app.data.findIndex((item) => item.id === id);
+
+              if (index !== -1) {
+                // 确实存在：这是【修改】旧数据
+                newEntryData.id = id; // 保持原ID
+                app.data[index] = newEntryData; // 替换旧数据
+                isUpdate = true;
+              } else {
+                // 虽然有ID但数组里找不到（可能是脏数据）：当作【新增】
+                // 这种情况生成新ID，避免覆盖任何潜在数据
+                newEntryData.id = Crypto.getUUID();
+                app.data.push(newEntryData);
+              }
+            } else {
+              // 没有ID：这是纯粹的【新增】
+              newEntryData.id = Crypto.getUUID();
+              app.data.push(newEntryData);
+            }
+
+            // 7. 保存并刷新
             await app.saveData();
-
             app.closeModal();
             app.renderList();
-            app.showToast("已保存");
+            app.showToast(isUpdate ? "已修改" : "已添加");
           } catch (err) {
             if (err.message !== "Validation Error") {
-              console.error("Save Error:", err);
-              await app.showAlert(
-                "保存失败：可能是加密出错或存储空间已满。",
-                "错误"
-              );
+              console.error(err);
+              app.showAlert("保存出错，请备份数据后刷新重试");
             }
           } finally {
             btn.disabled = false;
